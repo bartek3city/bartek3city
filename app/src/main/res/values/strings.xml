@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Rejestrator Rozmów</string>
+    <string name="accessibility_label">Rejestrator Rozmów – nagrywanie połączeń</string>
+    <string name="accessibility_description">Wykrywa rozpoczęcie i zakończenie rozmowy telefonicznej, nagrywa ją i wyświetla przycisk nagrywania nad ekranem dzwonienia. Usługa nie odczytuje treści ekranu.</string>
+    <string name="tile_label">Nagraj rozmowę</string>
+</resources>
