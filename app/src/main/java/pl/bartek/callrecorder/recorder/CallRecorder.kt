@@ -2,6 +2,7 @@ package pl.bartek.callrecorder.recorder
 
 import android.content.Context
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -77,7 +78,8 @@ class CallRecorder(private val ctx: Context) {
     private fun tryStart(source: Int): Boolean {
         val file = outputFile ?: return false
         file.delete()
-        val r = MediaRecorder(ctx)
+        val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(ctx)
+        else @Suppress("DEPRECATION") MediaRecorder()
         return try {
             r.setAudioSource(source)
             r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
