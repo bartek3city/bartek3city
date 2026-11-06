@@ -24,7 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,6 +48,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import pl.bartek.callrecorder.root.RootHelper
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +71,12 @@ private val PERMISSIONS = buildList {
     add(Manifest.permission.READ_PHONE_STATE)
     add(Manifest.permission.READ_CALL_LOG)
     add(Manifest.permission.READ_CONTACTS)
-    if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+    if (Build.VERSION.SDK_INT >= 33) {
+        add(Manifest.permission.POST_NOTIFICATIONS)
+        add(Manifest.permission.READ_MEDIA_AUDIO)
+    } else {
+        add(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
 }.toTypedArray()
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -134,6 +146,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 desc = "AssemblyAI – transkrypcja z podziałem na mówców; Anthropic – analiza i podsumowanie (Claude).",
                 action = null,
             ) {}
+
+            HorizontalDivider()
+            Text("Nagrywanie z linii (obie strony)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            LineCaptureSection(settings)
 
             HorizontalDivider()
             Text("Nagrywanie", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
@@ -252,5 +268,76 @@ private fun Dropdown(label: String, options: List<Pair<String, String>>, selecte
                 DropdownMenuItem(text = { Text(text) }, onClick = { current = key; onSelect(key); expanded = false })
             }
         }
+    }
+}
+
+
+@Composable
+private fun LineCaptureSection(settings: Settings) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val lineOk = remember { RootHelper.hasLineCapture(ctx) }
+    var busy by remember { mutableStateOf(false) }
+    var log by remember { mutableStateOf<RootHelper.Result?>(null) }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (lineOk) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, null,
+                    tint = if (lineOk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    if (lineOk) "Tryb root aktywny – nagrywanie bezpośrednio z linii (VOICE_CALL)"
+                    else "Tryb root nieaktywny",
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                "Wymaga telefonu z rootem (Magisk, KernelSU lub APatch). Aplikacja instaluje się jako systemowa " +
+                    "z uprawnieniem CAPTURE_AUDIO_OUTPUT i nagrywa obie strony rozmowy we wszystkich trybach " +
+                    "(słuchawka, głośnik, Bluetooth). Po instalacji modułu uruchom telefon ponownie. " +
+                    "Uwaga: rootowanie Samsunga trwale wyłącza Knox (Samsung Wallet, Folder Bezpieczny, Samsung Pass).",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (!lineOk) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(enabled = !busy, onClick = {
+                    busy = true
+                    scope.launch {
+                        log = withContext(Dispatchers.IO) { RootHelper.installModule(ctx) }
+                        busy = false
+                    }
+                }) { Text(if (busy) "Instalowanie…" else "Zainstaluj moduł root") }
+            }
+        }
+    }
+
+    Toggle(
+        "Używaj wbudowanego rejestratora rozmów (bez roota)",
+        "Samsung: Telefon → ⋮ → Ustawienia → Nagrywaj połączenia → Automatyczne nagrywanie: włącz. " +
+            "Po każdej rozmowie aplikacja pobierze to nagranie (obie strony z linii) i je przeanalizuje; " +
+            "własne nagrywanie z mikrofonu jest wtedy wyłączone.",
+        settings.useSystemRecorder,
+    ) { settings.useSystemRecorder = it }
+
+    log?.let { r ->
+        AlertDialog(
+            onDismissRequest = { log = null },
+            title = { Text(if (r.ok) "Moduł zainstalowany" else "Instalacja nieudana") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (r.ok) Text("Uruchom telefon ponownie, aby aktywować nagrywanie z linii.\n")
+                    Text(r.log.ifBlank { "(brak komunikatów)" }, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                if (r.ok) TextButton(onClick = {
+                    scope.launch(Dispatchers.IO) { RootHelper.reboot() }
+                }) { Text("Uruchom ponownie") }
+                else TextButton(onClick = { log = null }) { Text("OK") }
+            },
+            dismissButton = { if (r.ok) TextButton(onClick = { log = null }) { Text("Później") } },
+        )
     }
 }

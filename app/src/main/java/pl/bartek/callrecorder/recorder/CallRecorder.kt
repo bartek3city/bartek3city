@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import pl.bartek.callrecorder.root.RootHelper
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -40,7 +41,17 @@ class CallRecorder(private val ctx: Context) {
 
     fun start(preferred: String): Boolean {
         if (isRecording) return true
+        // Z uprawnieniem CAPTURE_AUDIO_OUTPUT (tryb root / aplikacja systemowa) w AUTO używamy tylko linii
+        // i nie przełączamy się na mikrofon przy chwilowej ciszy (np. oczekiwanie na połączenie).
+        val lineCapture = RootHelper.hasLineCapture(ctx)
         candidates = when (preferred) {
+            "AUTO" -> if (lineCapture) listOf(
+                MediaRecorder.AudioSource.VOICE_CALL,
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                MediaRecorder.AudioSource.MIC,
+            ) else null
+            else -> null
+        } ?: when (preferred) {
             "VOICE_CALL" -> listOf(MediaRecorder.AudioSource.VOICE_CALL)
             "VOICE_RECOGNITION" -> listOf(MediaRecorder.AudioSource.VOICE_RECOGNITION)
             "VOICE_COMMUNICATION" -> listOf(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
@@ -66,7 +77,8 @@ class CallRecorder(private val ctx: Context) {
             if (tryStart(src)) {
                 usedSource = sourceName(src)
                 Log.i(TAG, "Nagrywanie ze źródła $usedSource")
-                if (candidateIndex < candidates.size - 1) scheduleSilenceCheck()
+                val trustLine = src == MediaRecorder.AudioSource.VOICE_CALL && RootHelper.hasLineCapture(ctx)
+                if (candidateIndex < candidates.size - 1 && !trustLine) scheduleSilenceCheck()
                 return true
             }
             candidateIndex++

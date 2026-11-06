@@ -28,13 +28,39 @@ Od Androida 9/10 Google blokuje zwykłym aplikacjom bezpośredni dostęp do dźw
 | Głośnik | ✅ | ✅ dobrze |
 | Słuchawka przy uchu | ✅ | ⚠️ zależy od telefonu – często cicho / wcale |
 | Bluetooth / słuchawki przewodowe | ⚠️ zależy od telefonu | ❌ zwykle nie (dźwięk idzie tylko do słuchawek) |
-| Telefon z rootem / producent pozwala na `VOICE_CALL` | ✅ | ✅ we wszystkich trybach |
+| Tryb root lub wbudowany rejestrator (patrz niżej) | ✅ | ✅ we wszystkich trybach |
 
 W trybie **AUTO** aplikacja próbuje najpierw `VOICE_CALL` (linia – obie strony), a jeśli telefon go blokuje
 lub nagrywa ciszę, przełącza się na mikrofon (`VOICE_RECOGNITION` → `VOICE_COMMUNICATION` → `MIC`).
 Opcja **„Włączaj głośnik podczas rozmowy”** najbardziej poprawia nagrywanie rozmówcy.
 Jeżeli Twój telefon ma **wbudowany rejestrator rozmów** (Samsung, Xiaomi, Google Phone w części krajów),
 nagrywa on obie strony we wszystkich trybach – takie nagranie możesz udostępnić do tej aplikacji i dostać pełną analizę.
+
+## Nagrywanie obu stron z linii – dwa sposoby
+
+### A. Wbudowany rejestrator rozmów (bez roota) – zalecane np. dla Samsung Galaxy
+Samsung (One UI), Xiaomi i część innych producentów mają systemowy rejestrator, który nagrywa linię
+we wszystkich trybach (słuchawka, głośnik, Bluetooth).
+
+1. Samsung: *Telefon → ⋮ → Ustawienia → Nagrywaj połączenia → Automatyczne nagrywanie połączeń* → włącz (wszystkie numery).
+2. W aplikacji: *Ustawienia → „Używaj wbudowanego rejestratora rozmów”*.
+3. Po każdej rozmowie aplikacja wyszukuje nowy plik w `Recordings/Call` (MediaStore), kopiuje go i uruchamia analizę.
+   Własne nagrywanie z mikrofonu jest wtedy wyłączone, żeby nie przeszkadzać systemowemu rejestratorowi.
+
+### B. Tryb root (Magisk / KernelSU / APatch)
+Aplikacja instaluje się jako **systemowa (priv-app)** z uprawnieniem `CAPTURE_AUDIO_OUTPUT`,
+dzięki czemu źródło `VOICE_CALL` nagrywa obie strony bezpośrednio z linii.
+
+- Z aplikacji: *Ustawienia → „Zainstaluj moduł root”* → zgoda w menedżerze roota → restart telefonu.
+  Moduł jest budowany z aktualnie zainstalowanego APK.
+- Albo ręcznie: artefakt `rejestrator-rozmow-root-module` z GitHub Actions → zainstaluj zip w Magisk/KernelSU/APatch → restart.
+- Po restarcie w Ustawieniach pojawi się „Tryb root aktywny”. Aktualizacje APK instaluj normalnie (ten sam podpis) –
+  uprawnienie zostaje; po większej zmianie warto przeinstalować moduł.
+- Odinstalowanie: usuń moduł „Rejestrator Rozmów – nagrywanie linii” w menedżerze roota i zrestartuj telefon.
+
+> ⚠️ Samsung: odblokowanie bootloadera i root **trwale** przepalają Knox (Samsung Wallet/Pay, Folder Bezpieczny,
+> Samsung Pass, częściowo Samsung Health przestają działać), utrudniają aplikacje bankowe i aktualizacje OTA.
+> Jeśli zależy Ci tylko na nagrywaniu – użyj sposobu A.
 
 ## Instalacja
 

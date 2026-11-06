@@ -18,7 +18,20 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
+      - name: Build root module (Magisk / KernelSU / APatch)
+        run: |
+          M=module-build; A=app/src/main/assets/magisk
+          mkdir -p $M/META-INF/com/google/android $M/system/priv-app/CallRecorder $M/system/etc/permissions
+          cp $A/module.prop $A/customize.sh $M/
+          cp $A/update-binary $A/updater-script $M/META-INF/com/google/android/
+          cp $A/privapp.xml $M/system/etc/permissions/privapp-permissions-pl.bartek.callrecorder.xml
+          cp app/build/outputs/apk/debug/app-debug.apk $M/system/priv-app/CallRecorder/CallRecorder.apk
+          (cd $M && zip -r9 ../rejestrator-rozmow-root-module.zip .)
       - uses: actions/upload-artifact@v4
         with:
           name: rejestrator-rozmow-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rejestrator-rozmow-root-module
+          path: rejestrator-rozmow-root-module.zip

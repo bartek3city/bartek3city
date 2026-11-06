@@ -44,6 +44,7 @@ import pl.bartek.callrecorder.data.Direction
 import pl.bartek.callrecorder.data.Recording
 import pl.bartek.callrecorder.data.Settings
 import pl.bartek.callrecorder.recorder.CallRecorder
+import pl.bartek.callrecorder.recorder.SystemRecorderImporter
 import pl.bartek.callrecorder.ui.MainActivity
 import java.io.File
 
@@ -145,7 +146,8 @@ class CallRecorderService : AccessibilityService() {
                 callActive = true
                 callStartedAt = System.currentTimeMillis()
                 if (settings.autoSpeaker) enableSpeaker()
-                if (settings.autoRecord) startRecording()
+                // W trybie wbudowanego rejestratora nie nagrywamy równolegle (żeby mu nie przeszkadzać).
+                if (settings.autoRecord && !settings.useSystemRecorder) startRecording()
                 if (settings.showOverlay) showOverlay()
             }
             TelephonyManager.CALL_STATE_IDLE -> {
@@ -153,7 +155,9 @@ class CallRecorderService : AccessibilityService() {
                     val incoming = wasRinging
                     callActive = false
                     hideOverlay()
-                    if (recorder.isRecording) stopRecording(if (incoming) Direction.INCOMING else Direction.OUTGOING)
+                    val dir = if (incoming) Direction.INCOMING else Direction.OUTGOING
+                    if (recorder.isRecording) stopRecording(dir, fromCallEnd = true)
+                    else if (settings.useSystemRecorder) saveRecording(null, callStartedAt, null, dir)
                     restoreSpeaker()
                 }
                 wasRinging = false
@@ -189,30 +193,39 @@ class CallRecorderService : AccessibilityService() {
         requestTileUpdate()
     }
 
-    fun stopRecording(direction: Direction = Direction.UNKNOWN) {
+    fun stopRecording(direction: Direction = Direction.UNKNOWN, fromCallEnd: Boolean = false) {
         val started = recorder.startedAt
         val source = recorder.usedSource
         val file = recorder.stop()
         getSystemService(NotificationManager::class.java).cancel(NOTIF_RECORDING)
         updateOverlay()
         requestTileUpdate()
-        if (file != null) saveRecording(file, started, source, direction)
+        val callStart = if (fromCallEnd) callStartedAt else started
+        if (file != null || (fromCallEnd && settings.useSystemRecorder)) saveRecording(file, callStart, source, direction)
     }
 
-    private fun saveRecording(file: File, startedAt: Long, source: String?, direction: Direction) {
-        val duration = System.currentTimeMillis() - startedAt
+    /**
+     * Zapisuje rozmowę w bazie. Gdy włączony jest tryb wbudowanego rejestratora, najpierw czeka na jego plik
+     * (nagranie z linii, obie strony) i używa go zamiast własnego nagrania z mikrofonu.
+     */
+    private fun saveRecording(ownFile: File?, startedAt: Long, ownSource: String?, direction: Direction) {
+        val endedAt = System.currentTimeMillis()
+        val useSystem = settings.useSystemRecorder
         scope.launch(Dispatchers.IO) {
+            val system = if (useSystem) SystemRecorderImporter.awaitRecording(this@CallRecorderService, startedAt) else null
+            val file = system?.file ?: ownFile ?: return@launch
+            if (system != null) ownFile?.delete()
             // Rejestr połączeń zapisuje się z opóźnieniem – dajmy mu chwilę.
             delay(2000)
             val info = lookupCallLog(startedAt)
             val rec = Recording(
                 filePath = file.absolutePath,
                 startedAt = startedAt,
-                durationMs = duration,
+                durationMs = system?.durationMs?.takeIf { it > 0 } ?: (endedAt - startedAt),
                 direction = info?.direction ?: direction,
                 phoneNumber = info?.number,
                 contactName = info?.name,
-                audioSource = source,
+                audioSource = if (system != null) "SYSTEM_RECORDER" else ownSource,
             )
             val id = App.instance.db.recordings().insert(rec)
             if (settings.autoAnalyze) AnalysisWorker.enqueue(this@CallRecorderService, id)

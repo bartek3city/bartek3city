@@ -19,6 +19,11 @@ class Settings(ctx: Context) {
         get() = p.getBoolean("auto_speaker", false)
         set(v) = p.edit().putBoolean("auto_speaker", v).apply()
 
+    /** Zamiast własnego nagrania pobieraj plik z wbudowanego rejestratora rozmów (Samsung itp.). */
+    var useSystemRecorder: Boolean
+        get() = p.getBoolean("use_system_recorder", false)
+        set(v) = p.edit().putBoolean("use_system_recorder", v).apply()
+
     var autoAnalyze: Boolean
         get() = p.getBoolean("auto_analyze", true)
         set(v) = p.edit().putBoolean("auto_analyze", v).apply()
